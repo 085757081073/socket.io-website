@@ -1,82 +1,119 @@
----
-title: Tutorial - Introduction
-sidebar_label: Introduction
-slug: introduction
----
+```javascript
+const express = require('express');
+const http = require('http');
+const socketIO = require('socket.io');
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
+const app = express();
+const server = http.createServer(app);
+const io = socketIO(server);
 
-# Getting started
+// Menyimpan daftar pengguna yang terhubung
+let connectedUsers = [];
 
-Welcome to the Socket.IO tutorial!
+// Menangani koneksi socket baru
+io.on('connection', (socket) => {
+  console.log('User terhubung');
 
-In this tutorial we'll create a basic chat application. It requires almost no basic prior knowledge of Node.JS or Socket.IO, so it’s ideal for users of all knowledge levels.
+  // Menambahkan pengguna baru ke daftar pengguna terhubung
+  socket.on('join', (username) => {
+    const user = {
+      id: socket.id,
+      username: username
+    };
+    connectedUsers.push(user);
+    console.log(`${username} telah bergabung`);
 
-## Introduction
+    // Mengirim daftar pengguna terhubung ke semua pengguna
+    io.emit('userList', connectedUsers);
+  });
 
-Writing a chat application with popular web applications stacks like LAMP (PHP) has normally been very hard. It involves polling the server for changes, keeping track of timestamps, and it’s a lot slower than it should be.
+  // Mengirim pesan ke grup chat
+  socket.on('message', (message) => {
+    console.log(`Pesan baru: ${message.text}`);
 
-Sockets have traditionally been the solution around which most real-time chat systems are architected, providing a bi-directional communication channel between a client and a server.
+    // Mengirim pesan ke semua pengguna
+    io.emit('message', message);
+  });
 
-This means that the server can *push* messages to clients. Whenever you write a chat message, the idea is that the server will get it and push it to all other connected clients.
+  // Menghapus pengguna dari daftar pengguna terhubung saat socket terputus
+  socket.on('disconnect', () => {
+    connectedUsers = connectedUsers.filter(user => user.id !== socket.id);
+    console.log('User terputus');
 
-## How to use this tutorial
+    // Mengirim daftar pengguna terhubung yang diperbarui ke semua pengguna
+    io.emit('userList', connectedUsers);
+  });
+});
 
-### Tooling
-
-Any text editor (from a basic text editor to a complete IDE such as [VS Code](https://code.visualstudio.com/)) should be sufficient to complete this tutorial.
-
-Additionally, at the end of each step you will find a link to some online platforms ([CodeSandbox](https://codesandbox.io) and [StackBlitz](https://stackblitz.com), namely), allowing you to run the code directly from your browser:
-
-![Screenshot of the CodeSandbox platform](/images/codesandbox.png)
-
-### Syntax settings
-
-In the Node.js world, there are two ways to import modules:
-
-- the standard way: ECMAScript modules (or ESM)
-
-```js
-import { Server } from "socket.io";
+server.listen(3000, () => {
+  console.log('Server berjalan di http://localhost:3000');
+});
 ```
 
-Reference: https://nodejs.org/api/esm.html
+2. Client-side (menggunakan Socket.io pada JavaScript di sisi klien):
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chat Grup Tanpa Akun</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
+</head>
+<body>
+  <h1>Chat Grup Tanpa Akun</h1>
 
-- the legacy way: CommonJS
+  <div id="userList"></div>
 
-```js
-const { Server } = require("socket.io");
+  <div id="chatContainer"></div>
+
+  <div>
+    <input type="text" id="messageInput" placeholder="Tulis pesan" />
+    <button onclick="sendMessage()">Kirim</button>
+  </div>
+
+  <script>
+    const socket = io();
+
+    socket.on('connect', () => {
+      const username = prompt("Masukkan nama pengguna:");
+      socket.emit('join', username);
+    });
+
+    socket.on('userList', (users) => {
+      const userList = document.getElementById('userList');
+      userList.innerHTML = 'Daftar Pengguna Terhubung:';
+      users.forEach(user => {
+        const listItem = document.createElement('li');
+        listItem.textContent = user.username;
+        userList.appendChild(listItem);
+      });
+    });
+
+    socket.on('message', (message) => {
+      const chatContainer = document.getElementById('chatContainer');
+
+      const messageElement = document.createElement('div');
+      messageElement.textContent = `${message.sender}: ${message.text}`;
+
+      chatContainer.appendChild(messageElement);
+    });
+
+    function sendMessage() {
+      const messageInput = document.getElementById('messageInput');
+      const message = messageInput.value;
+
+      if (message) {
+        const newMessage = {
+          sender: 'User',
+          text: message
+        };
+
+        socket.emit('message', newMessage);
+
+        // Clear pesan input setelah pengiriman
+        messageInput.value = '';
+      }
+    }
+  </script>
+</body>
+</html>
 ```
-
-Reference: https://nodejs.org/api/modules.html
-
-Socket.IO supports both syntax. 
-
-:::tip
-
-We recommend using the ESM syntax in your project, though this might not always be feasible due to some packages not supporting this syntax.
-
-:::
-
-For your convenience, throughout the tutorial, each code block allows you to select your preferred syntax:
-
-<Tabs groupId="lang">
-  <TabItem value="cjs" label="CommonJS" default>
-
-```js
-const { Server } = require("socket.io");
-```
-
-  </TabItem>
-  <TabItem value="mjs" label="ES modules">
-
-```js
-import { Server } from "socket.io";
-```
-
-  </TabItem>
-</Tabs>
-
-
-Ready? Click "Next" to get started.
